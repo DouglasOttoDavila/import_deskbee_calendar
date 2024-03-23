@@ -6,6 +6,9 @@ from api_request import fetch_api_data
 import logging
 import argparse
 
+# Prompt the user to enter the calendar ID
+calendar_id = input("Enter the calendar ID to search for events: ")
+
 # Global variable to store event IDs
 created_event_ids = []
 
@@ -49,11 +52,6 @@ def authenticate_google():
     )
     return credentials
 
-
-def update_google_calendar_events(start_date, end_date, area_full, id):
-    delete_events_by_deskbee_id()
-    create_google_calendar_events(start_date, end_date, area_full, id)
-
 def create_google_calendar_events(start_date, end_date, description, id):
 
     # Authenticate using the service account
@@ -78,7 +76,7 @@ def create_google_calendar_events(start_date, end_date, description, id):
     }
 
     # Call the Calendar API
-    event_response = service.events().insert(calendarId='douglas.odavila@gmail.com', body=event).execute()
+    event_response = service.events().insert(calendarId=calendar_id, body=event).execute()
     logging.info(f"Creating event for {start_date} to {end_date} in {description}...")
     logging.info(f"Event for {start_date} to {end_date} in {description} created. Event response: {event_response}")
     
@@ -95,7 +93,7 @@ def delete_created_events():
 
     # Iterate through each event ID and delete the corresponding event
     for event_id in created_event_ids:
-        service.events().delete(calendarId='douglas.odavila@gmail.com', eventId=event_id).execute()
+        service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
         logging.info(f"Deleting event with ID {event_id}...")
     
     # Clear the list of created event IDs after deletion
@@ -110,13 +108,13 @@ def delete_events_by_deskbee_id():
     query = "Deskbee ID:"
 
     # Call the Calendar API
-    events_result = service.events().list(calendarId='douglas.odavila@gmail.com', q=query).execute()
+    events_result = service.events().list(calendarId=calendar_id, q=query).execute()
     events = events_result.get('items', [])
 
     # Iterate through each event and delete them
     for event in events:
         event_id = event['id']
-        service.events().delete(calendarId='douglas.odavila@gmail.com', eventId=event_id).execute()
+        service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
         logging.info(f"Deleting event with ID {event_id}...")
     
     # Clear the list of created event IDs after deletion
@@ -154,6 +152,7 @@ def main():
 
     if update_all:
         logging.info("Updating all events...")
+        delete_events_by_deskbee_id()
         for event in data['data']:
             # Extract the date portion from the start_date and end_date strings
             start_date = event['start_date']
@@ -161,7 +160,7 @@ def main():
             area_full = event['place']['area_full']
             id = event['uuid']
             # Updates all events in the calendar
-            update_google_calendar_events(start_date, end_date, area_full, id)
+            create_google_calendar_events(start_date, end_date, area_full, id)
         logging.info("Events updated successfully.")
 
     logging.info("Script completed.")
