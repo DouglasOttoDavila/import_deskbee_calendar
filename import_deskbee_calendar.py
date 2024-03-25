@@ -6,23 +6,8 @@ from api_request import fetch_api_data
 import logging
 import argparse
 
-# Prompt the user to enter the calendar ID
-calendar_id = input("Enter the calendar ID to search for events: ")
-
 # Global variable to store event IDs
 created_event_ids = []
-
-# Variable to create events
-create_events = False
-
-# Variable to delete events after creation
-delete_in_sequence = False
-
-# Variable to delete all events with "Deskbee ID:" in their description
-delete_all = False
-
-# Variable to update all events
-update_all = False
 
 # Path to your service account key file
 SERVICE_ACCOUNT_FILE = 'calendarapi-418104-ae9899773ec5.json'
@@ -30,18 +15,15 @@ SERVICE_ACCOUNT_FILE = 'calendarapi-418104-ae9899773ec5.json'
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Fetch API response data
-api_response_data = fetch_api_data()
-
-# Load API response data
-data = json.loads(api_response_data)
-
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Script to import events from Deskbee to Google Calendar')
     parser.add_argument('--create_events', action='store_true', help='Create events in Calendar')
     parser.add_argument('--delete_in_sequence', action='store_true', help='Delete events after creation')
     parser.add_argument('--delete_all', action='store_true', help='Delete all events with "Deskbee ID:" in their description')
     parser.add_argument('--update_all', action='store_true', help='Update all events')
+    parser.add_argument('--calendar_id', type=str, help='Google Calendar ID')
+    parser.add_argument('--bearer_token', type=str, help='Google API Bearer Token')
+    parser.add_argument('--origin_header', type=str, help='Origin Header (https://www.deskbee.com)')
     return parser.parse_args()
 
 def authenticate_google():
@@ -52,7 +34,7 @@ def authenticate_google():
     )
     return credentials
 
-def create_google_calendar_events(start_date, end_date, description, id):
+def create_google_calendar_events(start_date, end_date, description, id, calendar_id):
 
     # Authenticate using the service account
     credentials = authenticate_google()
@@ -83,7 +65,7 @@ def create_google_calendar_events(start_date, end_date, description, id):
     # Store the event ID
     created_event_ids.append(event_response['id'])
 
-def delete_created_events():
+def delete_created_events(calendar_id):
     # Wait for a few seconds to ensure events are created before deletion
     time.sleep(5)
 
@@ -99,7 +81,7 @@ def delete_created_events():
     # Clear the list of created event IDs after deletion
     created_event_ids.clear()
 
-def delete_events_by_deskbee_id():
+def delete_events_by_deskbee_id(calendar_id):
     # Authenticate using the service account
     credentials = authenticate_google()
     service = build('calendar', 'v3', credentials=credentials)
@@ -130,29 +112,38 @@ def main():
     delete_in_sequence = args.delete_in_sequence
     delete_all = args.delete_all
     update_all = args.update_all
+    calendar_id = args.calendar_id
+    bearer_token = args.bearer_token
+    origin_header = args.origin_header
+
+    # Fetch API response data
+    api_response_data = fetch_api_data(bearer_token, origin_header)
+
+    # Load API response data
+    data = json.loads(api_response_data)
 
     logging.info("Script started.")
 
     if create_events:
-        for event in data['data']:
+        for event in data['data']: 
             # Extract the date portion from the start_date and end_date strings
             start_date = event['start_date']
             end_date = event['end_date']
             area_full = event['place']['area_full']
             id = event['uuid']
-            create_google_calendar_events(start_date, end_date, area_full, id)
+            create_google_calendar_events(start_date, end_date, area_full, id, calendar_id)
     
     if delete_in_sequence:
         # Delete the events created by the script
-        delete_created_events()
+        delete_created_events(calendar_id)
 
     if delete_all:
         # Deletes all events with "Deskbee ID:" in their description
-        delete_events_by_deskbee_id()
+        delete_events_by_deskbee_id(calendar_id)
 
     if update_all:
         logging.info("Updating all events...")
-        delete_events_by_deskbee_id()
+        delete_events_by_deskbee_id(calendar_id)
         for event in data['data']:
             # Extract the date portion from the start_date and end_date strings
             start_date = event['start_date']
@@ -160,7 +151,7 @@ def main():
             area_full = event['place']['area_full']
             id = event['uuid']
             # Updates all events in the calendar
-            create_google_calendar_events(start_date, end_date, area_full, id)
+            create_google_calendar_events(start_date, end_date, area_full, id, calendar_id, bearer_token, origin_header)
         logging.info("Events updated successfully.")
 
     logging.info("Script completed.")
